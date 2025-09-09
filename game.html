@@ -1,0 +1,56 @@
+
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>WebGL Sprite Renderer</title>
+  <style>
+    body { margin: 0; background: black; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+  <canvas id="glCanvas"></canvas>
+
+  <script type="module">
+    import { initWebGL, loadShaderSource, createProgram } from "./js/webglUtils.js";
+
+    const canvas = document.getElementById("glCanvas");
+    const gl = initWebGL(canvas);
+
+    async function main() {
+      const vertexSrc = await loadShaderSource("./shaders/vertex.glsl");
+      const fragmentSrc = await loadShaderSource("./shaders/fragment.glsl");
+
+      const program = createProgram(gl, vertexSrc, fragmentSrc);
+      gl.useProgram(program);
+
+      const vertices = new Float32Array([
+        -1, -1,  0, 0,
+         1, -1,  1, 0,
+        -1,  1,  0, 1,
+         1,  1,  1, 1,
+      ]);
+
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+      const a_position = gl.getAttribLocation(program, "a_position");
+      const a_texcoord = gl.getAttribLocation(program, "a_texcoord");
+
+      gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 16, 0);
+      gl.enableVertexAttribArray(a_position);
+
+      gl.vertexAttribPointer(a_texcoord, 2, gl.FLOAT, false, 16, 8);
+      gl.enableVertexAttribArray(a_texcoord);
+
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    main();
+  </script>
+</body>
+</html>
