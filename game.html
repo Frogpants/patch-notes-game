@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>WebGL Sprite Renderer</title>
+  <title>WebGL Post-Process Game</title>
   <style>
     body { margin: 0; background: black; }
     canvas { display: block; width: 100vw; height: 100vh; }
@@ -12,31 +12,42 @@
   <canvas id="glCanvas"></canvas>
 
   <script type="module">
-    import { initWebGL, loadShaderSource, createProgram } from "./js/webglUtils.js";
+    import { 
+      initWebGL, 
+      loadShaderSource, 
+      createProgram, 
+      createFramebuffer 
+    } from "./js/webglUtils.js";
 
     const canvas = document.getElementById("glCanvas");
     const gl = initWebGL(canvas);
 
     async function main() {
-      const vertexSrc = await loadShaderSource("./shaders/vertex.glsl");
-      const fragmentSrc = await loadShaderSource("./shaders/fragment.glsl");
+      // obj
+      const sceneVertSrc = await loadShaderSource("./shaders/objVert.glsl");
+      const sceneFragSrc = await loadShaderSource("./shaders/objFrag.glsl");
+      const sceneProgram = createProgram(gl, sceneVertSrc, sceneFragSrc);
 
-      const program = createProgram(gl, vertexSrc, fragmentSrc);
-      gl.useProgram(program);
+      // post
+      const postVertSrc = await loadShaderSource("./shaders/postVertex.glsl");
+      const postFragSrc = await loadShaderSource("./shaders/postFragment.glsl");
+      const postProgram = createProgram(gl, postVertSrc, postFragSrc);
 
-      const vertices = new Float32Array([
-        -1, -1,  0, 0,
-         1, -1,  1, 0,
-        -1,  1,  0, 1,
-         1,  1,  1, 1,
+      const framebuffer = createFramebuffer(gl, canvas.width, canvas.height);
+
+      const quadVertices = new Float32Array([
+        -1, -1, 0, 0,
+         1, -1, 1, 0,
+        -1,  1, 0, 1,
+         1,  1, 1, 1,
       ]);
+      
+      const quadBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
 
-      const buffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-
-      const a_position = gl.getAttribLocation(program, "a_position");
-      const a_texcoord = gl.getAttribLocation(program, "a_texcoord");
+      const a_position = gl.getAttribLocation(postProgram, "a_position");
+      const a_texcoord = gl.getAttribLocation(postProgram, "a_texcoord");
 
       gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 16, 0);
       gl.enableVertexAttribArray(a_position);
@@ -44,10 +55,45 @@
       gl.vertexAttribPointer(a_texcoord, 2, gl.FLOAT, false, 16, 8);
       gl.enableVertexAttribArray(a_texcoord);
 
-      gl.clearColor(0, 0, 0, 1);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      function renderScene() {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer.fb);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0.1, 0.1, 0.1, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
 
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        gl.useProgram(sceneProgram);
+
+        // do not forget this is where to put the obj rendering code (I keep forgetting)
+      }
+
+      function renderPost() {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        gl.useProgram(postProgram);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, framebuffer.tex);
+        const u_texture = gl.getUniformLocation(postProgram, "u_texture");
+        gl.uniform1i(u_texture, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+        gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 16, 0);
+        gl.enableVertexAttribArray(a_position);
+        gl.vertexAttribPointer(a_texcoord, 2, gl.FLOAT, false, 16, 8);
+        gl.enableVertexAttribArray(a_texcoord);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+
+      function loop() {
+        renderScene();
+        renderPost();
+        requestAnimationFrame(loop);
+      }
+
+      loop();
     }
 
     main();
